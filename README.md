@@ -35,49 +35,133 @@ npm start
 
 ### 开发模式运行（带热更新）：
 ```bash
+npm install nodemon
 npm run dev
 ```
 
 ## 系统架构
 
 ```
-前端(微信小游戏) <---> Express后端 <---> 文件存储
-                        |
-                        v
-                   微信开放API
+前端(微信小游戏) <---> HTTP API(Express后端) <---> 数据持久化层
+        |                    |                     (文件存储)
+        |                    v                         ^
+        |               微信开放API                    |
+        |                                             |
+        v                                             |
+    WebSocket服务 <---------> 内存数据层 <-------------+
+        |                   (活跃状态)
+        |                       |
+        v                       v
+    房间状态管理 <-----> 用户会话管理
 ```
+
+### 架构说明
+
+1. **通信层**
+   - **HTTP API**: 处理非实时请求，如用户登录、游戏配置获取等
+   - **WebSocket服务**: 提供实时通信能力，支持游戏状态同步、玩家操作广播等
+
+2. **数据存储层**
+   - **内存数据层**: 
+     - 存储活跃房间信息和实时游戏状态
+     - 维护玩家ID索引和房间ID索引
+     - 支持高频读写操作，确保游戏实时性
+   - **持久化层**: 
+     - 使用文件存储玩家基本信息和历史游戏记录
+     - 结构化存储设计，便于后期迁移到微信云托管MySQL
+     - 定期从内存层同步数据
+
+3. **状态同步机制**
+   - 定时同步策略（每5分钟执行一次）
+   - 关键事件触发同步（如玩家离开游戏）
+   - 增量更新机制减少I/O开销
+   - 异常恢复机制保障数据完整性
+
+4. **功能模块**
+   - **房间状态管理**: 负责房间创建、加入、状态更新等
+   - **用户会话管理**: 处理用户身份验证和会话保持
+   - **微信API集成**: 与微信小游戏平台对接
+
+这种架构设计具有以下优势：
+- 满足多人在线游戏的实时通信需求
+- 平衡系统性能和数据持久性
+- 符合微信云托管的技术要求
+- 支持后期功能扩展和服务迁移
 
 ## 目录结构
 
 ```
 mishi_server/
 ├── data/                  # 数据文件目录
-│   ├── users.json         # 用户数据
+│   ├── users/             # 用户数据存储
+│   │   └── profiles.json  # 用户配置文件
+│   ├── games/             # 游戏数据存储
+│   │   └── history.json   # 游戏历史记录
 │   └── game_config.json   # 游戏配置
 ├── src/
-│   ├── controllers/       # 控制器
+│   ├── controllers/       # HTTP控制器
 │   │   ├── userController.js
 │   │   ├── gameController.js
 │   │   └── roomController.js
-│   ├── services/          # 业务逻辑
+│   ├── services/          # 业务逻辑层
 │   │   ├── userService.js
 │   │   ├── gameService.js
 │   │   └── roomService.js
+│   ├── websocket/         # WebSocket模块
+│   │   ├── wsServer.js    # WebSocket服务器
+│   │   ├── handlers/      # 消息处理器
+│   │   │   ├── gameHandler.js
+│   │   │   ├── roomHandler.js
+│   │   │   └── playerHandler.js
+│   │   └── events.js      # 事件定义
+│   ├── storage/           # 存储层
+│   │   ├── memory/        # 内存存储
+│   │   │   ├── roomStore.js  # 房间内存存储
+│   │   │   ├── sessionStore.js # 会话内存存储
+│   │   │   └── gameStateStore.js # 游戏状态存储
+│   │   ├── file/          # 文件存储
+│   │   │   ├── userStore.js
+│   │   │   └── gameStore.js
+│   │   └── syncManager.js # 数据同步管理器
 │   ├── middleware/        # 中间件
 │   │   ├── auth.js        # 认证中间件
-│   │   └── logger.js      # 日志中间件
+│   │   ├── logger.js      # 日志中间件
+│   │   └── rateLimit.js   # 请求限流中间件
 │   ├── utils/             # 工具函数
 │   │   ├── wxAuth.js      # 微信认证工具
-│   │   ├── storage.js     # 存储工具
-│   │   └── roomManager.js # 房间管理
-│   ├── routes/            # 路由
-│   │   ├── userRoutes.js
-│   │   ├── gameRoutes.js
-│   │   └── roomRoutes.js
+│   │   ├── validation.js  # 数据验证工具
+│   │   └── helpers.js     # 通用辅助函数
+│   ├── managers/          # 管理器模块
+│   │   ├── roomManager.js # 房间管理器
+│   │   ├── sessionManager.js # 会话管理器
+│   │   └── gameManager.js # 游戏状态管理器
+│   ├── routes/            # HTTP路由
+│   │   ├── api/           # API路由
+│   │   │   ├── userRoutes.js
+│   │   │   ├── gameRoutes.js
+│   │   │   └── roomRoutes.js
+│   │   └── index.js       # 路由注册
 │   └── config.js          # 配置文件
-├── app.js                 # 应用入口
+├── app.js                 # Express应用入口
+├── wsApp.js               # WebSocket应用入口
+├── server.js              # 服务器启动文件
 └── package.json
 ```
+
+## 模块说明
+
+### 通信模块
+- **HTTP API**: 通过Express路由提供RESTful接口
+- **WebSocket**: 基于ws或socket.io实现实时通信
+
+### 数据存储模块
+- **内存存储**: 高性能，适用于活跃游戏数据
+- **文件存储**: 持久化，支持数据备份与恢复
+
+### 管理器模块
+- **房间管理器**: 负责房间生命周期、状态同步
+- **会话管理器**: 管理用户连接与身份验证
+- **游戏管理器**: 控制游戏逻辑与状态更新
 
 ## API 文档
 
@@ -424,6 +508,289 @@ Authorization: Bearer {token}
   }
 }
 ```
+
+## WebSocket通信协议
+
+### 连接建立
+
+WebSocket连接URL:
+```
+ws://server-url/ws?token={token}&openId={openId}
+```
+
+其中:
+- `token`: 用户登录后获取的认证令牌
+- `openId`: 用户的唯一标识
+
+### 消息格式
+
+所有WebSocket消息使用JSON格式，基本结构如下:
+
+```json
+{
+  "type": "消息类型",
+  "data": {
+    // 消息数据，根据type不同而变化
+  },
+  "timestamp": 1684231296142
+}
+```
+
+### 客户端发送的消息类型
+
+#### 加入房间
+```json
+{
+  "type": "JOIN_ROOM",
+  "data": {
+    "roomId": "123456",
+    "playerInfo": {
+      "nickname": "玩家昵称",
+      "avatarUrl": "头像URL",
+      "characterId": "角色ID"
+    }
+  }
+}
+```
+
+#### 准备状态变更
+```json
+{
+  "type": "PLAYER_READY",
+  "data": {
+    "roomId": "123456",
+    "ready": true
+  }
+}
+```
+
+#### 游戏操作
+```json
+{
+  "type": "GAME_ACTION",
+  "data": {
+    "roomId": "123456",
+    "action": "move",
+    "position": {"x": 100, "y": 200},
+    "direction": "right"
+  }
+}
+```
+
+#### 游戏事件
+```json
+{
+  "type": "GAME_EVENT",
+  "data": {
+    "roomId": "123456",
+    "eventType": "item_collected",
+    "itemId": "key_gold",
+    "position": {"x": 320, "y": 240}
+  }
+}
+```
+
+#### 聊天消息
+```json
+{
+  "type": "CHAT_MESSAGE",
+  "data": {
+    "roomId": "123456",
+    "message": "大家好！"
+  }
+}
+```
+
+#### 心跳包
+```json
+{
+  "type": "PING",
+  "data": {
+    "timestamp": 1684231296142
+  }
+}
+```
+
+### 服务端发送的消息类型
+
+#### 加入房间响应
+```json
+{
+  "type": "JOIN_ROOM_RESULT",
+  "data": {
+    "success": true,
+    "roomId": "123456",
+    "roomInfo": {
+      "hostId": "房主ID",
+      "players": [
+        {
+          "openId": "玩家1ID",
+          "nickname": "玩家1昵称",
+          "ready": true
+        },
+        {
+          "openId": "玩家2ID",
+          "nickname": "玩家2昵称",
+          "ready": false
+        }
+      ],
+      "gameMode": "racing",
+      "maxPlayers": 4
+    }
+  }
+}
+```
+
+#### 房间状态更新
+```json
+{
+  "type": "ROOM_UPDATE",
+  "data": {
+    "roomId": "123456",
+    "updateType": "player_joined/player_left/player_ready",
+    "player": {
+      "openId": "玩家ID",
+      "nickname": "玩家昵称",
+      "ready": true
+    }
+  }
+}
+```
+
+#### 游戏开始
+```json
+{
+  "type": "GAME_START",
+  "data": {
+    "roomId": "123456",
+    "gameState": {
+      "startTime": "2023-04-08T12:34:56Z",
+      "map": "bedroom",
+      "playerPositions": {
+        "player1Id": {"x": 100, "y": 100},
+        "player2Id": {"x": 200, "y": 100}
+      },
+      "items": [
+        {"id": "key_1", "position": {"x": 300, "y": 200}},
+        {"id": "puzzle_1", "position": {"x": 400, "y": 300}}
+      ]
+    }
+  }
+}
+```
+
+#### 游戏状态同步
+```json
+{
+  "type": "GAME_STATE_SYNC",
+  "data": {
+    "roomId": "123456",
+    "playerStates": {
+      "player1Id": {
+        "position": {"x": 120, "y": 150},
+        "direction": "right",
+        "items": ["key_1"]
+      },
+      "player2Id": {
+        "position": {"x": 220, "y": 180},
+        "direction": "left",
+        "items": []
+      }
+    },
+    "gameTime": 45,
+    "events": [
+      {"type": "door_unlocked", "doorId": "door_1"}
+    ]
+  }
+}
+```
+
+#### 游戏结束
+```json
+{
+  "type": "GAME_END",
+  "data": {
+    "roomId": "123456",
+    "winner": "player1Id",
+    "gameStats": {
+      "player1Id": {
+        "score": 1200,
+        "itemsCollected": 3,
+        "timeUsed": 120
+      },
+      "player2Id": {
+        "score": 800,
+        "itemsCollected": 1,
+        "timeUsed": 120
+      }
+    }
+  }
+}
+```
+
+#### 广播操作
+```json
+{
+  "type": "BROADCAST_ACTION",
+  "data": {
+    "roomId": "123456",
+    "playerId": "player1Id",
+    "action": "move",
+    "position": {"x": 150, "y": 200},
+    "direction": "right"
+  }
+}
+```
+
+#### 聊天广播
+```json
+{
+  "type": "CHAT_BROADCAST",
+  "data": {
+    "roomId": "123456",
+    "senderId": "player1Id",
+    "senderName": "玩家1昵称",
+    "message": "大家好！"
+  }
+}
+```
+
+#### 心跳响应
+```json
+{
+  "type": "PONG",
+  "data": {
+    "timestamp": 1684231296142
+  }
+}
+```
+
+#### 错误消息
+```json
+{
+  "type": "ERROR",
+  "data": {
+    "code": 4001,
+    "message": "房间不存在"
+  }
+}
+```
+
+### 错误码定义
+
+| 错误码 | 描述 |
+|-------|------|
+| 4000 | 一般错误 |
+| 4001 | 房间不存在 |
+| 4002 | 房间已满 |
+| 4003 | 玩家未准备 |
+| 4004 | 玩家不在房间中 |
+| 4005 | 不是房主 |
+| 4006 | 游戏已开始 |
+| 4007 | 操作无效 |
+| 4008 | 用户未认证 |
+| 4009 | 超时错误 |
+| 5000 | 服务器内部错误 |
 
 ## 数据结构
 
