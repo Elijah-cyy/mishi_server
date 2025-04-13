@@ -8,7 +8,14 @@ const roomHandlers = require('../../handlers/roomHandlers');
 const authMiddleware = require('../../middleware/auth');
 
 // 所有房间路由都需要认证
-router.use(authMiddleware);
+router.use(authMiddleware.authMiddleware);
+
+/**
+ * @route POST /api/room
+ * @desc 创建新房间（直接在根路径上创建）
+ * @access 私有
+ */
+router.post('/', roomHandlers.handleCreateRoom);
 
 /**
  * @route POST /api/room/create

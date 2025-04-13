@@ -19,8 +19,8 @@ const config = {
   
   // 微信小游戏配置
   weixin: {
-    appId: process.env.WX_APPID,
-    appSecret: process.env.WX_SECRET,
+    appId: process.env.WX_APPID || 'wxb7a630bac914f871',
+    appSecret: process.env.WX_SECRET || '7b855be01d45ef8e88af3f8297086f00',
   },
   
   // 文件存储配置

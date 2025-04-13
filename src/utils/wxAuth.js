@@ -41,13 +41,17 @@ async function code2Session(code) {
       grant_type: 'authorization_code'
     };
 
+    console.log('调用微信接口，参数:', params);
+
     const response = await axios.get(url, { params });
     const data = response.data;
+
+    console.log('微信接口返回数据:', data);
 
     // 检查微信API返回的错误
     if (data.errcode) {
       console.error('微信登录API错误:', data.errcode, data.errmsg);
-      throw new Error(`微信登录失败: ${data.errmsg || '未知错误'}`);
+      throw new Error(`微信登录失败: ${data.errmsg || '未知错误'} (错误码: ${data.errcode})`);
     }
 
     return {
@@ -57,7 +61,7 @@ async function code2Session(code) {
     };
   } catch (error) {
     console.error('微信登录请求失败:', error);
-    return null;
+    throw new Error('微信登录请求失败: ' + (error.message || '未知错误'));
   }
 }
 

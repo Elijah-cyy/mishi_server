@@ -24,6 +24,9 @@
 ```bash
 cd mishi_server
 npm install
+
+# 安装所有必需的依赖（如果npm install没有自动安装）
+npm install helmet compression body-parser dotenv axios
 ```
 
 2. 本地运行：
@@ -35,9 +38,14 @@ npm start
 
 ### 开发模式运行（带热更新）：
 ```bash
+# 安装开发依赖
 npm install nodemon
+
+# 启动开发模式
 npm run dev
 ```
+
+> 注意：如果遇到模块找不到的错误，请检查package.json并确保已安装所有必需的依赖包。
 
 ## 系统架构
 

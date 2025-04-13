@@ -16,32 +16,46 @@ const { sendSuccess, sendError } = require('../utils/responses');
  */
 async function handleWxLogin(req, res) {
   try {
+    console.log('收到微信登录请求:', req.body);
+    
     // 校验请求数据
     const validationResult = validateRequest(req.body, {
       code: { type: 'string', required: true },
-      userInfo: { type: 'object' }
+      userInfo: { type: 'object' },
+      encryptedData: { type: 'string' },
+      iv: { type: 'string' }
     });
 
     if (!validationResult.valid) {
+      console.error('登录请求数据无效:', validationResult.errors);
       return sendError(res, 400, '请求数据无效', validationResult.errors);
     }
 
-    const { code, userInfo } = validationResult.data;
+    const { code, userInfo, encryptedData, iv } = validationResult.data;
+    console.log('请求验证通过，开始处理微信登录，Code:', code);
 
     // 微信登录，获取openId
-    const wxLoginResult = await wxAuth.code2Session(code);
+    let wxLoginResult;
+    try {
+      wxLoginResult = await wxAuth.code2Session(code);
+      console.log('微信登录成功, 获取到openId:', wxLoginResult.openId);
+    } catch (error) {
+      console.error('微信登录失败:', error);
+      return sendError(res, 400, '微信登录失败: ' + error.message);
+    }
 
     if (!wxLoginResult) {
-      return sendError(res, 400, '微信登录失败');
+      return sendError(res, 400, '微信登录失败: 未获取到用户信息');
     }
 
     const { openId, sessionKey } = wxLoginResult;
 
     // 解密用户数据（如果有加密数据）
     let decryptedUserInfo = userInfo;
-    if (req.body.encryptedData && req.body.iv) {
+    if (encryptedData && iv && sessionKey) {
       try {
-        decryptedUserInfo = wxAuth.decryptData(req.body.encryptedData, req.body.iv, sessionKey);
+        decryptedUserInfo = wxAuth.decryptData(encryptedData, iv, sessionKey);
+        console.log('用户数据解密成功');
       } catch (error) {
         console.error('解密用户数据失败:', error);
         // 继续使用未加密的数据
@@ -55,12 +69,16 @@ async function handleWxLogin(req, res) {
       lastLoginAt: new Date().toISOString()
     });
 
+    console.log('用户数据已保存:', openId);
+
     // 创建会话
     const token = sessionManager.createSession(openId, {
       nickname: userData.nickname || '游客',
       avatar: userData.avatarUrl,
       role: userData.role || 'user'
     });
+
+    console.log('用户会话已创建, 生成token成功');
 
     // 返回成功响应
     sendSuccess(res, 200, '登录成功', {
@@ -73,7 +91,7 @@ async function handleWxLogin(req, res) {
       }
     });
   } catch (error) {
-    console.error('登录失败:', error);
+    console.error('处理登录请求发生异常:', error);
     sendError(res, 500, '登录失败', { message: error.message });
   }
 }

@@ -2,7 +2,7 @@
  * 服务器启动文件 - 启动HTTP和WebSocket服务
  */
 const http = require('http');
-const app = require('./app');
+const app = require('./src/app');
 const createWebSocketServer = require('./wsApp');
 const config = require('./src/config');
 
