@@ -79,9 +79,10 @@ async function handleWxLogin(req, res) {
     });
 
     console.log('用户会话已创建, 生成token成功');
+    console.log('准备发送给前端的 Token:', token);
 
     // 返回成功响应
-    sendSuccess(res, 200, '登录成功', {
+    const responseData = {
       token,
       user: {
         openId,
@@ -89,7 +90,10 @@ async function handleWxLogin(req, res) {
         avatar: userData.avatarUrl,
         role: userData.role || 'user'
       }
-    });
+    };
+    console.log('准备发送给前端的完整 Data:', responseData);
+    
+    sendSuccess(res, 200, '登录成功', responseData);
   } catch (error) {
     console.error('处理登录请求发生异常:', error);
     sendError(res, 500, '登录失败', { message: error.message });

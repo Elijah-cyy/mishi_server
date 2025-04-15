@@ -14,10 +14,15 @@ const { sendSuccess, sendError } = require('../utils/responses');
  */
 function handleCreateRoom(req, res) {
   try {
-    // 校验请求数据
+    // 从认证中间件获取用户ID
+    const hostId = req.user?.id; // 假设认证中间件将用户信息放在 req.user
+    if (!hostId) {
+      return sendError(res, 401, '无法获取用户信息，请重新登录');
+    }
+
+    // 校验请求数据 - 移除 hostId 验证，name 改为非必需
     const validationResult = validateRequest(req.body, {
-      name: { type: 'string', required: true },
-      hostId: { type: 'string', required: true },
+      name: { type: 'string', required: false }, // name 改为非必需
       maxPlayers: { type: 'number', min: 1, max: 10, default: 4 },
       timeLimit: { type: 'number', min: 600, max: 7200, default: 3600 },
       mapId: { type: 'string', default: 'default' },
@@ -28,8 +33,17 @@ function handleCreateRoom(req, res) {
       return sendError(res, 400, '请求数据无效', validationResult.errors);
     }
 
+    // 准备创建房间的数据
+    const createOptions = validationResult.data;
+    createOptions.hostId = hostId; // 从 req.user 获取 hostId
+    
+    // 如果没有提供房间名称，生成默认名称
+    if (!createOptions.name) {
+      createOptions.name = `玩家${hostId.substring(0, 4)}的房间`; // 示例默认名称
+    }
+
     // 创建房间
-    const roomData = roomManager.createRoom(validationResult.data);
+    const roomData = roomManager.createRoom(createOptions); // 传递包含 hostId 和 name 的完整选项
 
     // 返回房间信息
     sendSuccess(res, 201, '房间创建成功', { room: roomData });
