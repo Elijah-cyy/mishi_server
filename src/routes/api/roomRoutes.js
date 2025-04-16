@@ -80,4 +80,11 @@ router.post('/:roomId/start', roomHandlers.handleStartGame);
  */
 router.post('/:roomId/end', roomHandlers.handleEndGame);
 
+/**
+ * @route POST /api/room/leave
+ * @desc 玩家离开房间
+ * @access 私有
+ */
+router.post('/leave', roomHandlers.handleLeaveRoom);
+
 module.exports = router; 

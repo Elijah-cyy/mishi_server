@@ -17,6 +17,9 @@ const { rateLimit } = require('./middleware/rateLimit');
 const routes = require('./routes');
 const debugRoutes = require('./routes/api/debugRoutes');
 
+// 引入数据同步管理器
+const syncManager = require('./storage/syncManager');
+
 // 创建Express应用
 const app = express();
 
@@ -26,6 +29,15 @@ app.use(compression()); // 压缩响应
 app.use(cors()); // 跨域支持
 app.use(bodyParser.json()); // JSON解析
 app.use(bodyParser.urlencoded({ extended: true })); // URL编码解析
+
+// 启动定期数据同步
+syncManager.startPeriodicSync();
+console.log('[App] 定期数据同步任务已启动');
+
+// 执行一次初始同步
+syncManager.syncAll(true).catch(err => {
+  console.error('[App] 初始数据同步失败:', err);
+});
 
 // 设置日志中间件
 // app.use(logger.requestLogger); // Removed this line

@@ -6,6 +6,7 @@
 const http = require('http');
 const app = require('./app');
 const wsApp = require('./wsApp');
+const syncManager = require('./storage/syncManager');
 
 // 默认配置
 const PORT = process.env.PORT || 3000;
@@ -38,8 +39,17 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // 优雅关闭
-const shutdown = () => {
+const shutdown = async () => {
   console.log('开始关闭服务器...');
+  
+  // 执行最终数据同步
+  try {
+    console.log('执行最终数据同步...');
+    await syncManager.syncAll(true);
+    console.log('数据同步完成');
+  } catch (error) {
+    console.error('最终数据同步失败:', error);
+  }
   
   // 停止接收新的连接
   server.close(() => {
@@ -54,6 +64,12 @@ const shutdown = () => {
     console.log('所有连接已关闭，进程退出');
     process.exit(0);
   });
+  
+  // 设置强制退出的超时处理，防止清理过程卡住
+  setTimeout(() => {
+    console.log('强制退出进程');
+    process.exit(1);
+  }, 10000); // 10秒后强制退出
 };
 
 // 监听终止信号

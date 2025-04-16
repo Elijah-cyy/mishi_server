@@ -335,6 +335,53 @@ function clearAllGameStates() {
   console.log('所有游戏状态已清理');
 }
 
+/**
+ * 清理已完成或已终止的游戏状态
+ * @param {Object} options 清理选项
+ * @param {number} options.completedMaxAge 已完成游戏的最大保留时间(毫秒)，默认30分钟
+ * @param {number} options.abortedMaxAge 已终止游戏的最大保留时间(毫秒)，默认30分钟
+ * @param {number} options.runningMaxAge 运行中游戏的最大无更新时间(毫秒)，默认6小时
+ * @returns {number} 清理的游戏状态数量
+ */
+function cleanupCompletedGames(options = {}) {
+  const now = Date.now();
+  const { 
+    completedMaxAge = 30 * 60 * 1000,   // 默认30分钟
+    abortedMaxAge = 30 * 60 * 1000,     // 默认30分钟
+    runningMaxAge = 6 * 60 * 60 * 1000  // 默认6小时
+  } = options;
+  
+  let cleanedCount = 0;
+  const statesToDelete = [];
+  
+  // 遍历所有游戏状态，检查是否过期
+  for (const [roomId, gameState] of gameStates.entries()) {
+    // 计算自上次更新以来的时间
+    const stateAge = now - gameState.updatedAt;
+    
+    // 根据游戏状态决定是否清理
+    if (
+      // 已完成的游戏，超过completedMaxAge
+      (gameState.status === 'completed' && stateAge > completedMaxAge) ||
+      // 已终止的游戏，超过abortedMaxAge
+      (gameState.status === 'aborted' && stateAge > abortedMaxAge) ||
+      // 运行中但长时间未更新的游戏，超过runningMaxAge
+      ((['running', 'waiting', 'paused'].includes(gameState.status)) && stateAge > runningMaxAge)
+    ) {
+      statesToDelete.push(roomId);
+    }
+  }
+  
+  // 删除标记的游戏状态
+  for (const roomId of statesToDelete) {
+    gameStates.delete(roomId);
+    cleanedCount++;
+    console.log(`清理游戏状态: ${roomId}`);
+  }
+  
+  return cleanedCount;
+}
+
 module.exports = {
   createGameState,
   getGameState,
@@ -349,5 +396,6 @@ module.exports = {
   isGameTimeout,
   getAllGameStates,
   getGameCount,
-  clearAllGameStates
+  clearAllGameStates,
+  cleanupCompletedGames
 }; 

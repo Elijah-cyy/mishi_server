@@ -293,6 +293,41 @@ function handleEndGame(req, res) {
   }
 }
 
+/**
+ * 玩家离开房间请求处理器
+ * @param {Object} req 请求对象
+ * @param {Object} res 响应对象
+ */
+function handleLeaveRoom(req, res) {
+  try {
+    const { roomId } = req.body;
+    const playerId = req.userId; // 从认证中间件获取
+
+    if (!roomId) {
+      return sendError(res, 400, '房间ID不能为空');
+    }
+
+    if (!playerId) {
+      return sendError(res, 401, '无法获取用户信息，请重新登录');
+    }
+
+    console.log(`玩家尝试离开房间: ${playerId} -> ${roomId}`);
+
+    // 从房间移除玩家
+    const result = roomManager.removePlayerFromRoom(roomId, playerId);
+
+    if (!result) {
+      return sendError(res, 404, '房间或玩家不存在');
+    }
+
+    // 返回成功信息
+    sendSuccess(res, 200, '成功离开房间', { room: result });
+  } catch (error) {
+    console.error('离开房间失败:', error);
+    sendError(res, 500, '离开房间失败', { message: error.message });
+  }
+}
+
 module.exports = {
   handleCreateRoom,
   handleGetRoom,
@@ -302,5 +337,6 @@ module.exports = {
   handleAddPlayerToRoom,
   handleRemovePlayerFromRoom,
   handleStartGame,
-  handleEndGame
+  handleEndGame,
+  handleLeaveRoom
 }; 
