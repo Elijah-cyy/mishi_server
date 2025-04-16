@@ -51,7 +51,7 @@ function requestLogger(req, res, next) {
     const duration = Date.now() - startTime;
     
     // 获取用户ID（如果已经通过认证）
-    const userId = req.userId ? req.userId.substring(0, 8) + '...' : 'anonymous';
+    const userId = req.userId ? req.userId.substring(0, 8) + '...' : '匿名用户';
     
     // 构建日志消息
     const logMessage = `${req.method} ${req.originalUrl} - ${res.statusCode} - ${duration}ms - UserId: ${userId}`;
@@ -94,83 +94,26 @@ function errorLogger(err, req, res, next) {
  * API访问日志中间件，记录API请求和响应（简化版）
  */
 function apiLogger(req, res, next) {
-  // 生成唯一请求ID
   const requestId = req.headers['x-request-id'] || 
                    `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
-  
-  // 记录请求时间
   const startTime = Date.now();
-  
-  // 在请求对象上保存请求ID，方便其他中间件使用
-  req.requestId = requestId;
-  
-  // 输出简化的请求信息
-  console.log(`${colors.cyan}[API请求]${colors.reset} ID:${requestId} | ${colors.green}${req.method} ${req.originalUrl}${colors.reset}`);
-  
-  // 记录请求体 (保留参数信息)
-  if (req.body && Object.keys(req.body).length > 0) {
-    // 屏蔽敏感字段
-    const sensitiveFields = ['password', 'token', 'secret', 'key'];
-    const sanitizedBody = JSON.parse(JSON.stringify(req.body));
-    
-    for (const field of sensitiveFields) {
-      if (sanitizedBody[field]) {
-        sanitizedBody[field] = '******';
-      }
-    }
-    
-    console.log(`${colors.dim}请求参数:${colors.reset}`, sanitizedBody);
-  }
-  
-  // 保存原始的方法
-  const originalSend = res.send;
-  const originalJson = res.json;
+  req.requestId = requestId; // Attach for potential use elsewhere
+
+  // Log incoming request (concise)
+  console.log(`[API] Req ${requestId}: ${req.method} ${req.originalUrl}`);
+
+  // Keep original end function to measure duration and log response
   const originalEnd = res.end;
-  
-  // 拦截响应
-  res.send = function(body) {
-    res.responseBody = body;
-    return originalSend.apply(this, arguments);
-  };
-  
-  res.json = function(body) {
-    res.responseBody = body;
-    return originalJson.apply(this, arguments);
-  };
-  
   res.end = function(chunk, encoding) {
-    const responseTime = Date.now() - startTime;
-    
-    // 简化的响应信息记录
-    let statusColor = colors.green;
-    if (res.statusCode >= 400) statusColor = colors.yellow;
-    if (res.statusCode >= 500) statusColor = colors.red;
-    
-    console.log(`${colors.cyan}[API响应]${colors.reset} ID:${requestId} | ${statusColor}${res.statusCode}${colors.reset} | ${responseTime}ms`);
-    
-    // 记录响应体简要信息
-    if (res.responseBody) {
-      let responsePreview;
-      if (typeof res.responseBody === 'string') {
-        try {
-          const parsed = JSON.parse(res.responseBody);
-          responsePreview = JSON.stringify(parsed).substring(0, 150);
-          if (JSON.stringify(parsed).length > 150) responsePreview += '...';
-        } catch (e) {
-          responsePreview = `${res.responseBody.substring(0, 100)}${res.responseBody.length > 100 ? '...' : ''}`;
-        }
-      } else {
-        responsePreview = JSON.stringify(res.responseBody).substring(0, 150);
-        if (JSON.stringify(res.responseBody).length > 150) responsePreview += '...';
-      }
-      
-      console.log(`${colors.dim}响应数据:${colors.reset} ${responsePreview}`);
-    }
-    
-    // 调用原始方法
-    return originalEnd.apply(this, arguments);
+    // Call original end first
+    originalEnd.call(this, chunk, encoding);
+
+    // Log response (concise)
+    const duration = Date.now() - startTime;
+    const userIdLog = req.userId ? ` (User: ${req.userId.substring(0,8)}...)` : ''; // Add user if available
+    console.log(`[API] Res ${requestId}: ${req.method} ${req.originalUrl} -> ${res.statusCode} (${duration}ms)${userIdLog}`);
   };
-  
+
   next();
 }
 
@@ -190,7 +133,7 @@ function slowRequestLogger(threshold = 1000) {
       
       // 如果处理时间超过阈值，记录慢请求日志
       if (duration >= threshold) {
-        console.warn(`${colors.yellow}[慢请求警告]${colors.reset} ${req.method} ${req.originalUrl} - ${duration}ms`);
+        console.warn(`[SlowReq] ${req.method} ${req.originalUrl} - ${duration}ms`); // Simplified warning
       }
     });
     
@@ -200,7 +143,6 @@ function slowRequestLogger(threshold = 1000) {
 }
 
 module.exports = {
-  requestLogger,
   errorLogger,
   apiLogger,
   slowRequestLogger

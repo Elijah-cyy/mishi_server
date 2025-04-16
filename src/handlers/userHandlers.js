@@ -16,7 +16,7 @@ const { sendSuccess, sendError } = require('../utils/responses');
  */
 async function handleWxLogin(req, res) {
   try {
-    console.log('收到微信登录请求:', req.body);
+    // console.log('收到微信登录请求:', req.body); // Removed
     
     // 校验请求数据
     const validationResult = validateRequest(req.body, {
@@ -27,24 +27,25 @@ async function handleWxLogin(req, res) {
     });
 
     if (!validationResult.valid) {
-      console.error('登录请求数据无效:', validationResult.errors);
+      console.warn('[UserHandlers.handleWxLogin] Validation failed:', validationResult.errors);
       return sendError(res, 400, '请求数据无效', validationResult.errors);
     }
 
     const { code, userInfo, encryptedData, iv } = validationResult.data;
-    console.log('请求验证通过，开始处理微信登录，Code:', code);
+    // console.log('请求验证通过，开始处理微信登录，Code:', code); // Removed
 
     // 微信登录，获取openId
     let wxLoginResult;
     try {
       wxLoginResult = await wxAuth.code2Session(code);
-      console.log('微信登录成功, 获取到openId:', wxLoginResult.openId);
+      // console.log('微信登录成功, 获取到openId:', wxLoginResult.openId); // Removed
     } catch (error) {
-      console.error('微信登录失败:', error);
+      console.error('[UserHandlers.handleWxLogin] wxAuth.code2Session failed:', error);
       return sendError(res, 400, '微信登录失败: ' + error.message);
     }
 
     if (!wxLoginResult) {
+      console.error('[UserHandlers.handleWxLogin] wxAuth.code2Session returned no result for code:', code);
       return sendError(res, 400, '微信登录失败: 未获取到用户信息');
     }
 
@@ -55,10 +56,9 @@ async function handleWxLogin(req, res) {
     if (encryptedData && iv && sessionKey) {
       try {
         decryptedUserInfo = wxAuth.decryptData(encryptedData, iv, sessionKey);
-        console.log('用户数据解密成功');
+        // console.log('用户数据解密成功'); // Removed
       } catch (error) {
-        console.error('解密用户数据失败:', error);
-        // 继续使用未加密的数据
+        console.warn('[UserHandlers.handleWxLogin] Failed to decrypt user data:', error.message); // Log warning, but continue
       }
     }
 
@@ -69,7 +69,7 @@ async function handleWxLogin(req, res) {
       lastLoginAt: new Date().toISOString()
     });
 
-    console.log('用户数据已保存:', openId);
+    // console.log('用户数据已保存:', openId); // Removed
 
     // 创建会话
     const token = sessionManager.createSession(openId, {
@@ -78,8 +78,8 @@ async function handleWxLogin(req, res) {
       role: userData.role || 'user'
     });
 
-    console.log('用户会话已创建, 生成token成功');
-    console.log('准备发送给前端的 Token:', token);
+    // console.log('用户会话已创建, 生成token成功'); // Removed
+    // console.log('准备发送给前端的 Token:', token); // Removed
 
     // 返回成功响应
     const responseData = {
@@ -91,11 +91,11 @@ async function handleWxLogin(req, res) {
         role: userData.role || 'user'
       }
     };
-    console.log('准备发送给前端的完整 Data:', responseData);
-    
+    // console.log('准备发送给前端的完整 Data:', responseData); // Avoid logging potentially large object
+    console.log(`[UserHandlers] WxLogin successful for user ${openId}. Token generated.`); // Concise log
     sendSuccess(res, 200, '登录成功', responseData);
   } catch (error) {
-    console.error('处理登录请求发生异常:', error);
+    console.error('[UserHandlers.handleWxLogin] Error during login:', error); // Keep error log
     sendError(res, 500, '登录失败', { message: error.message });
   }
 }

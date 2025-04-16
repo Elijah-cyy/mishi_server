@@ -19,20 +19,28 @@ function setSession(token, sessionData) {
   if (!token) {
     throw new Error('会话令牌不能为空');
   }
+  // console.log(`[SessionStore.setSession] Setting session for token: ${token.substring(0, 10)}... UserID: ${sessionData?.userId}`);
   
   // 如果是新会话，建立用户ID到令牌的映射
   if (!sessions.has(token) && sessionData.userId) {
     // 移除当前用户的旧会话
     if (userIdToToken.has(sessionData.userId)) {
-      removeSession(userIdToToken.get(sessionData.userId));
+      const oldToken = userIdToToken.get(sessionData.userId);
+      // console.log(`[SessionStore.setSession] Removing old session for UserID ${sessionData.userId}, old token: ${oldToken.substring(0,10)}...`);
+      removeSession(oldToken);
     }
     
     // 建立新的映射
+    // console.log(`[SessionStore.setSession] Mapping UserID ${sessionData.userId} to new token ${token.substring(0,10)}...`);
     userIdToToken.set(sessionData.userId, token);
+  } else if (sessions.has(token)) {
+    // console.log(`[SessionStore.setSession] Updating existing session for token: ${token.substring(0, 10)}...`);
   }
   
   // 保存会话
   sessions.set(token, sessionData);
+  console.log(`[SessionStore] Session set/updated for user ${sessionData?.userId}. Total sessions: ${sessions.size}`);
+  // console.log(`[SessionStore.setSession] Session set/updated. Current session count: ${sessions.size}`);
   return sessionData;
 }
 
@@ -42,7 +50,9 @@ function setSession(token, sessionData) {
  * @returns {Object|null} 会话数据或null
  */
 function getSession(token) {
-  return sessions.has(token) ? sessions.get(token) : null;
+  const session = sessions.has(token) ? sessions.get(token) : null;
+  // console.log(`[SessionStore.getSession] Getting session for token: ${token ? token.substring(0, 10) + '...' : 'null'}. Found: ${!!session}`);
+  return session;
 }
 
 /**

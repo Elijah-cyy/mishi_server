@@ -14,15 +14,20 @@ const { sendSuccess, sendError } = require('../utils/responses');
  */
 function handleCreateRoom(req, res) {
   try {
-    // 从认证中间件获取用户ID
-    const hostId = req.user?.id; // 假设认证中间件将用户信息放在 req.user
+    // 从认证中间件获取用户ID (从 req.userId 获取)
+    const hostId = req.userId; // Corrected
+    // console.log(`[RoomHandlers.handleCreateRoom] Entered. HostID from req.userId: ${hostId}`); // Removed
+
     if (!hostId) {
+      console.error('[RoomHandlers.handleCreateRoom] Error: hostId is missing! Auth middleware might have failed or was bypassed.');
       return sendError(res, 401, '无法获取用户信息，请重新登录');
     }
+    
+    // console.log('[RoomHandlers.handleCreateRoom] HostID verified. Proceeding with validation...'); // Removed
 
-    // 校验请求数据 - 移除 hostId 验证，name 改为非必需
+    // 校验请求数据
     const validationResult = validateRequest(req.body, {
-      name: { type: 'string', required: false }, // name 改为非必需
+      name: { type: 'string', required: false },
       maxPlayers: { type: 'number', min: 1, max: 10, default: 4 },
       timeLimit: { type: 'number', min: 600, max: 7200, default: 3600 },
       mapId: { type: 'string', default: 'default' },
@@ -30,25 +35,29 @@ function handleCreateRoom(req, res) {
     });
 
     if (!validationResult.valid) {
+      console.warn('[RoomHandlers.handleCreateRoom] Validation failed:', validationResult.errors);
       return sendError(res, 400, '请求数据无效', validationResult.errors);
     }
 
-    // 准备创建房间的数据
+    // console.log('[RoomHandlers.handleCreateRoom] Validation successful. Preparing options...'); // Removed
     const createOptions = validationResult.data;
-    createOptions.hostId = hostId; // 从 req.user 获取 hostId
+    createOptions.hostId = hostId;
     
-    // 如果没有提供房间名称，生成默认名称
     if (!createOptions.name) {
-      createOptions.name = `玩家${hostId.substring(0, 4)}的房间`; // 示例默认名称
+      // console.log('[RoomHandlers.handleCreateRoom] No room name provided, generating default.'); // Removed
+      createOptions.name = `玩家${hostId.substring(0, 4)}的房间`;
     }
 
+    // console.log('[RoomHandlers.handleCreateRoom] Creating room with options:', createOptions); // Avoid logging potentially large object
     // 创建房间
-    const roomData = roomManager.createRoom(createOptions); // 传递包含 hostId 和 name 的完整选项
+    const roomData = roomManager.createRoom(createOptions);
 
+    // console.log('[RoomHandlers.handleCreateRoom] Room created successfully:', roomData); // Avoid logging potentially large object
+    console.log(`[RoomHandlers] Room created: ${roomData.roomId} by User: ${hostId.substring(0,8)}...`); // Concise log
     // 返回房间信息
     sendSuccess(res, 201, '房间创建成功', { room: roomData });
   } catch (error) {
-    console.error('创建房间失败:', error);
+    console.error('[RoomHandlers.handleCreateRoom] Error during room creation:', error); // Keep error log
     sendError(res, 500, '创建房间失败', { message: error.message });
   }
 }

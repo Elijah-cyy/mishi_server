@@ -39,7 +39,6 @@ function createSession(userId, userData = {}, options = {}) {
   
   // 存储会话
   sessionStore.setSession(token, session);
-  console.log(`会话创建成功: ${userId}`);
   
   return token;
 }
@@ -50,29 +49,36 @@ function createSession(userId, userData = {}, options = {}) {
  * @returns {Object|null} 会话对象或null
  */
 function verifySession(token) {
+  // console.log('[SessionManager.verifySession] Verifying token:', token ? token.substring(0, 10) + '...' : 'null');
   if (!token) {
     return null;
   }
   
   // 获取会话
+  // console.log('[SessionManager.verifySession] Getting session from store...');
   const session = sessionStore.getSession(token);
+  // console.log('[SessionManager.verifySession] Session from store:', session ? { userId: session.userId, tokenMatch: true } : null);
   
   // 检查会话是否存在
   if (!session) {
-    console.log(`会话不存在: ${token}`);
+    console.warn(`[会话管理器] verifySession 失败: 未找到令牌对应的会话 ${token.substring(0,10)}...`);
     return null;
   }
   
   // 检查会话是否过期
-  if (session.expiresAt < Date.now()) {
-    console.log(`会话已过期: ${token}`);
+  const now = Date.now();
+  const expired = session.expiresAt < now;
+  // console.log(`[SessionManager.verifySession] Expiration check: expiresAt=${session.expiresAt} (${new Date(session.expiresAt).toISOString()}), now=${now} (${new Date(now).toISOString()}), expired=${expired}`);
+  if (expired) {
+    console.warn(`[会话管理器] verifySession 失败: 令牌已过期 ${token.substring(0,10)}...`);
     sessionStore.removeSession(token);
     return null;
   }
   
   // 更新最后访问时间
-  session.lastAccessedAt = Date.now();
-  sessionStore.setSession(token, session);
+  // console.log('[SessionManager.verifySession] Session valid. Updating lastAccessedAt.');
+  session.lastAccessedAt = now;
+  sessionStore.setSession(token, session); // Update the session in the store
   
   return session;
 }

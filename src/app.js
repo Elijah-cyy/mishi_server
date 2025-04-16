@@ -15,6 +15,7 @@ const { rateLimit } = require('./middleware/rateLimit');
 
 // 引入路由
 const routes = require('./routes');
+const debugRoutes = require('./routes/api/debugRoutes');
 
 // 创建Express应用
 const app = express();
@@ -27,7 +28,7 @@ app.use(bodyParser.json()); // JSON解析
 app.use(bodyParser.urlencoded({ extended: true })); // URL编码解析
 
 // 设置日志中间件
-app.use(logger.requestLogger);
+// app.use(logger.requestLogger); // Removed this line
 
 // 设置限速中间件 - 每IP每分钟最多60次请求
 app.use(rateLimit({ windowMs: 60 * 1000, max: 60 }));
@@ -41,7 +42,15 @@ app.use('/api', logger.apiLogger);
 // 添加慢请求日志中间件 - 记录处理时间超过500ms的请求
 app.use(logger.slowRequestLogger(500));
 
-// 注册路由
+// --- 注册调试路由 (仅开发环境推荐) ---
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/debug', debugRoutes);
+  console.log('[App] 调试路由已启用，路径: /api/debug');
+} else {
+  console.log('[App] 生产环境禁用调试路由。');
+}
+
+// 注册主路由
 app.use('/', routes);
 
 // 错误处理
