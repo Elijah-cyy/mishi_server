@@ -31,7 +31,7 @@ npm install helmet compression body-parser dotenv axios
 
 2. 本地运行：
 ```bash
-npm start
+node server.js
 ```
 
 服务将在 http://localhost:3000 启动
