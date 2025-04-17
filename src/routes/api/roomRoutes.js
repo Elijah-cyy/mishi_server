@@ -25,6 +25,54 @@ router.post('/', roomHandlers.handleCreateRoom);
 router.post('/create', roomHandlers.handleCreateRoom);
 
 /**
+ * @route POST /api/room/join
+ * @desc 添加玩家到房间（兼容客户端接口）
+ * @access 私有
+ */
+router.post('/join', (req, res) => {
+  const { roomId } = req.body;
+  if (!roomId) {
+    return res.status(400).json({ code: 400, message: '房间ID不能为空' });
+  }
+  
+  // 从认证中间件获取用户ID作为玩家ID
+  const playerId = req.userId;
+  if (!playerId) {
+    return res.status(401).json({ code: 401, message: '无法获取用户ID，请重新登录' });
+  }
+  
+  // 将请求转发给handleAddPlayerToRoom处理
+  req.params.roomId = roomId;
+  req.body.playerId = playerId; // 添加玩家ID到请求体
+  
+  console.log(`[API] 玩家 ${playerId} 请求加入房间 ${roomId}`);
+  return roomHandlers.handleAddPlayerToRoom(req, res);
+});
+
+/**
+ * @route POST /api/room/ready
+ * @desc 更新玩家准备状态
+ * @access 私有
+ */
+router.post('/ready', roomHandlers.handleUpdatePlayerReady);
+
+/**
+ * @route POST /api/room/start
+ * @desc 开始游戏（兼容客户端接口）
+ * @access 私有（仅房主）
+ */
+router.post('/start', (req, res) => {
+  const { roomId } = req.body;
+  if (!roomId) {
+    return res.status(400).json({ code: 400, message: '房间ID不能为空' });
+  }
+  
+  // 将请求转发给handleStartGame处理
+  req.params.roomId = roomId;
+  return roomHandlers.handleStartGame(req, res);
+});
+
+/**
  * @route GET /api/room/:roomId
  * @desc 获取房间信息
  * @access 私有

@@ -6,6 +6,7 @@
 const roomStore = require('../storage/memory/roomStore');
 const gameStateStore = require('../storage/memory/gameStateStore');
 const { generateRoomId } = require('../utils/helpers');
+const wsApp = require('../wsApp');
 
 /**
  * 创建新房间
@@ -178,6 +179,13 @@ function addPlayerToRoom(roomId, playerId, playerData = {}) {
   roomStore.setRoom(roomId, updatedRoom);
   console.log(`玩家加入房间成功: ${playerId} -> ${roomId}`);
 
+  // 通知房间内所有玩家（包括新加入的玩家）
+  notifyRoomUpdate(roomId, 'PLAYER_JOINED', {
+    playerId,
+    player,
+    playerCount: updatedRoom.players.length
+  });
+
   return {
     room: updatedRoom,
     player
@@ -205,8 +213,11 @@ function removePlayerFromRoom(roomId, playerId) {
     return null;
   }
 
+  // 保存离开的玩家信息用于通知
+  const leavingPlayer = room.players[playerIndex];
+  
   // 玩家离开房间处理
-  const playerIsHost = room.players[playerIndex].isHost;
+  const playerIsHost = leavingPlayer.isHost;
   let updatedRoom = {
     ...room,
     players: room.players.filter((_, index) => index !== playerIndex),
@@ -229,6 +240,13 @@ function removePlayerFromRoom(roomId, playerId) {
   // 保存更新后的房间信息
   roomStore.setRoom(roomId, updatedRoom);
   console.log(`玩家离开房间: ${playerId} <- ${roomId}`);
+
+  // 通知房间内所有玩家（不包括离开的玩家）
+  notifyRoomUpdate(roomId, 'PLAYER_LEFT', {
+    playerId,
+    playerCount: updatedRoom.players.length,
+    newHostId: playerIsHost ? updatedRoom.hostId : null
+  });
 
   return updatedRoom;
 }
@@ -278,6 +296,13 @@ function updatePlayerReady(roomId, playerId, ready) {
   // 保存更新后的房间信息
   roomStore.setRoom(roomId, updatedRoom);
   console.log(`玩家准备状态更新: ${playerId}, ready=${ready}`);
+
+  // 通知房间内所有玩家
+  notifyRoomUpdate(roomId, 'PLAYER_READY_CHANGED', {
+    playerId,
+    ready,
+    allReady: updatedRoom.players.every(p => p.isHost || p.ready)
+  });
 
   return updatedRoom;
 }
@@ -462,6 +487,66 @@ function endGame(roomId, completed = true, results = {}) {
   return gameResults;
 }
 
+/**
+ * 发送房间更新通知给所有房间内的玩家
+ * @param {string} roomId 房间ID
+ * @param {string} eventType 事件类型
+ * @param {Object} eventData 事件数据
+ */
+function notifyRoomUpdate(roomId, eventType, eventData = {}) {
+  const room = roomStore.getRoom(roomId);
+  if (!room) {
+    console.log(`通知房间更新失败: 房间不存在 ${roomId}`);
+    return;
+  }
+
+  // 获取房间内所有玩家ID
+  const playerIds = room.players.map(player => player.openId);
+  
+  // 创建通知消息
+  const notifyMessage = {
+    type: 'ROOM_UPDATE',
+    data: {
+      roomId,
+      eventType,
+      timestamp: Date.now(),
+      ...eventData,
+      room  // 发送完整的房间信息
+    }
+  };
+
+  // 通过WebSocket向所有玩家广播
+  const sentCount = wsApp.broadcastToClients(playerIds, notifyMessage);
+  console.log(`房间更新通知已发送: ${eventType}, 房间: ${roomId}, 接收玩家: ${sentCount}/${playerIds.length}`);
+}
+
+/**
+ * 向房间所有玩家发送通知
+ * @param {string} roomId 房间ID
+ * @param {Object} message 消息内容
+ * @param {string} excludePlayerId 要排除的玩家ID
+ */
+function notifyAllPlayers(roomId, message, excludePlayerId = null) {
+  const room = roomStore.getRoom(roomId);
+  if (!room) {
+    console.log(`通知房间玩家失败: 房间不存在 ${roomId}`);
+    return;
+  }
+
+  // 获取房间内所有玩家ID (排除特定玩家)
+  const playerIds = room.players
+    .filter(player => player.openId !== excludePlayerId)
+    .map(player => player.openId);
+  
+  if (playerIds.length === 0) {
+    return;
+  }
+
+  // 通过WebSocket向所有玩家广播
+  const sentCount = wsApp.broadcastToClients(playerIds, message);
+  console.log(`房间消息已广播: ${message.type}, 房间: ${roomId}, 接收玩家: ${sentCount}/${playerIds.length}`);
+}
+
 module.exports = {
   createRoom,
   getRoom,
@@ -472,5 +557,7 @@ module.exports = {
   updatePlayerReady,
   closeRoom,
   startGame,
-  endGame
+  endGame,
+  notifyRoomUpdate,
+  notifyAllPlayers
 }; 

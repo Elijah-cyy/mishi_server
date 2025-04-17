@@ -32,6 +32,11 @@ const config = {
   
   // 数据同步配置
   syncInterval: 5 * 60 * 1000, // 5分钟
+
+  // 调试配置
+  debug: {
+    isDebug: process.env.IS_DEBUG === 'true',
+  }
 };
 
 module.exports = config; 

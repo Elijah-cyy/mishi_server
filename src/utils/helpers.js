@@ -4,6 +4,7 @@
  */
 
 const crypto = require('crypto');
+const config = require('../config');
 
 /**
  * 安全解析JSON
@@ -36,6 +37,10 @@ function generateId(prefix = '') {
  * @returns {string} 房间ID
  */
 function generateRoomId() {
+  // 调试模式下返回固定的房间ID
+  if (config.debug && config.debug.isDebug) {
+    return 'room_1744920339825_514';
+  }
   return `room_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 }
 

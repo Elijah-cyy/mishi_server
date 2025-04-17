@@ -328,6 +328,41 @@ function handleLeaveRoom(req, res) {
   }
 }
 
+/**
+ * 更新玩家准备状态请求处理器
+ * @param {Object} req 请求对象
+ * @param {Object} res 响应对象
+ */
+function handleUpdatePlayerReady(req, res) {
+  try {
+    const { roomId, ready } = req.body;
+    const playerId = req.userId; // 从认证中间件获取
+
+    if (!roomId) {
+      return sendError(res, 400, '房间ID不能为空');
+    }
+
+    if (!playerId) {
+      return sendError(res, 401, '无法获取用户信息，请重新登录');
+    }
+
+    console.log(`玩家更新准备状态: ${playerId} -> ${roomId}, ready: ${ready}`);
+
+    // 更新玩家准备状态
+    const result = roomManager.updatePlayerReady(roomId, playerId, ready);
+
+    if (!result) {
+      return sendError(res, 404, '房间或玩家不存在或状态无效');
+    }
+
+    // 返回成功信息
+    sendSuccess(res, 200, '成功更新准备状态', { room: result });
+  } catch (error) {
+    console.error('更新准备状态失败:', error);
+    sendError(res, 500, '更新准备状态失败', { message: error.message });
+  }
+}
+
 module.exports = {
   handleCreateRoom,
   handleGetRoom,
@@ -338,5 +373,6 @@ module.exports = {
   handleRemovePlayerFromRoom,
   handleStartGame,
   handleEndGame,
-  handleLeaveRoom
+  handleLeaveRoom,
+  handleUpdatePlayerReady
 }; 
