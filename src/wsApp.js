@@ -9,6 +9,8 @@ const sessionManager = require('./managers/sessionManager');
 
 // WebSocket服务实例
 let wss = null;
+// 心跳检测定时器
+let heartbeatInterval = null;
 
 // 客户端连接映射，key为userId，value为WebSocket连接
 const clients = new Map();
@@ -22,47 +24,71 @@ function attach(server) {
     throw new Error('HTTP服务器实例不能为空');
   }
 
-  // 创建WebSocket服务
+  // 创建WebSocket服务 (不再使用 verifyClient)
   wss = new WebSocket.Server({ 
-    server,
-    // 验证用户身份
-    verifyClient: verifyClientMiddleware
+    noServer: true // 重要：因为我们将手动处理升级
+    // server, // 不再直接传递 server
+    // verifyClient: verifyClientMiddleware // 这个选项在这种模式下会被忽略
   });
 
-  // 设置连接事件处理
+  // 设置连接事件处理 (仍然需要，但由 upgrade 事件手动触发)
   wss.on('connection', handleConnection);
 
-  console.log('WebSocket服务已附加到HTTP服务器');
+  // !! 启动心跳检测定时器 !!
+  heartbeatInterval = setInterval(() => {
+    clients.forEach((ws, userId) => {
+      // 检查 isAlive 标记，默认为 true，第一次检查设为 false
+      // 如果第二次检查时仍然是 false，说明客户端无响应
+      if (ws.isAlive === false) {
+        console.log(`[wsApp.heartbeat] 检测到客户端 ${userId} 无响应，正在终止连接。`);
+        return ws.terminate(); // 强制终止连接，会触发 'close' 事件完成清理
+      }
+
+      ws.isAlive = false; // 标记为可能不活跃，等待下次 PING 或消息来确认
+      // 可选：服务器主动发送 PING，客户端会自动响应 PONG
+      // ws.ping(() => {}); 
+    });
+  }, 30000); // 每 30 秒检查一次
+
+  // !! 关键改动：监听 HTTP 服务器的 'upgrade' 事件来进行验证和连接处理 !!
+  server.on('upgrade', (request, socket, head) => {
+    // 1. 解析 URL 和 Token
+    const parsedUrl = url.parse(request.url, true);
+    const pathname = parsedUrl.pathname; // 可能用于路径检查
+    const token = parsedUrl.query.token;
+
+    // 可选的路径检查
+    // if (pathname !== '/ws') { ... }
+
+    if (!token) {
+      console.log('[wsApp.server.on(\'upgrade\')] Verification failed: Missing token.');
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // 2. 验证 Token/Session
+    const session = sessionManager.verifySession(token);
+    if (!session) {
+      console.log('[wsApp.server.on(\'upgrade\')] Verification failed: Invalid or expired token.');
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
+    // 3. 调用 wss.handleUpgrade 完成握手
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      // 4. 将 userId 附加到 request 对象
+      request.userId = session.userId;
+      request.session = session;
+
+      // 5. 手动触发 'connection' 事件
+      wss.emit('connection', ws, request);
+    });
+  });
+
+  console.log('WebSocket服务准备就绪，监听 HTTP 服务器的 upgrade 事件');
   return wss;
-}
-
-/**
- * 验证客户端连接中间件
- * @param {Object} info 连接信息
- * @param {Function} callback 回调函数
- */
-function verifyClientMiddleware(info, callback) {
-  // 解析查询参数
-  const query = url.parse(info.req.url, true).query;
-  const { token } = query;
-
-  if (!token) {
-    console.log('WebSocket连接被拒绝: 缺少认证令牌');
-    return callback(false, 401, '缺少认证令牌');
-  }
-
-  // 验证令牌
-  const session = sessionManager.verifySession(token);
-  if (!session) {
-    console.log('WebSocket连接被拒绝: 无效或已过期的令牌');
-    return callback(false, 401, '无效或已过期的令牌');
-  }
-
-  // 将用户ID附加到请求对象，以便在连接处理中使用
-  info.req.userId = session.userId;
-  info.req.session = session;
-
-  callback(true);
 }
 
 /**
@@ -71,12 +97,50 @@ function verifyClientMiddleware(info, callback) {
  * @param {Object} req HTTP请求对象
  */
 function handleConnection(ws, req) {
+  // 尝试从 req 对象获取 userId (由 upgrade 事件附加)
   const userId = req.userId;
-  
-  console.log(`WebSocket客户端已连接: ${userId}`);
 
-  // 存储连接
+  // !! 关键检查：确保 userId 不是 undefined !!
+  if (userId === undefined) {
+    // 如果 userId 是 undefined，记录严重错误并可能关闭连接
+    console.error(`[wsApp.handleConnection] CRITICAL: userId is undefined for the incoming WebSocket connection! URL: ${req.url}. Closing connection.`);
+    // 可以选择发送一个错误消息给客户端再关闭
+    // ws.send(JSON.stringify({ type: 'ERROR', data: { code: 4001, message: 'User identification failed during WebSocket connection.' }}));
+    ws.close(1011, 'User ID could not be determined'); // 1011 = Internal Error
+    return; // 阻止后续代码执行
+  }
+
+  console.log(`WebSocket客户端已连接: ${userId}`); // 现在应该打印正确的 userId
+
+  // 检查是否已有此用户的连接，处理重复连接
+  if (clients.has(userId)) {
+    console.warn(`[wsApp.handleConnection] 检测到用户 ${userId} 的重复WebSocket连接。正在关闭旧连接...`);
+    const oldWs = clients.get(userId);
+    // 发送一个消息给旧连接，告知其被取代
+    if (oldWs && oldWs.readyState === WebSocket.OPEN) {
+      try {
+        oldWs.send(JSON.stringify({ type: 'CONNECTION_REPLACED', data: { message: 'A newer connection has been established.' }}));
+      } catch (e) {
+        console.error(`[wsApp.handleConnection] 发送 CONNECTION_REPLACED 消息给旧连接失败:`, e);
+      }
+      // 给旧连接一点时间处理消息再关闭
+      setTimeout(() => oldWs.close(1008, 'New connection established'), 100);
+    }
+    // 立即从 Map 中移除旧记录，避免干扰新连接
+    clients.delete(userId);
+  }
+
+  // 存储新的连接 (使用正确的 userId)
   clients.set(userId, ws);
+
+  // !! 初始化心跳标记 !!
+  ws.isAlive = true;
+
+  // !! 监听 PONG 响应，更新心跳标记 !!
+  ws.on('pong', () => {
+    // console.log(`[wsApp] Received PONG from ${userId}`); // 可选调试日志
+    ws.isAlive = true;
+  });
 
   // 发送欢迎消息
   sendToClient(userId, {
@@ -88,8 +152,11 @@ function handleConnection(ws, req) {
     }
   });
 
-  // 设置消息事件处理
-  ws.on('message', (message) => handleMessage(userId, message));
+  // 设置消息事件处理 (在处理前更新 isAlive 标记)
+  ws.on('message', (message) => {
+    ws.isAlive = true; // 收到任何消息都认为活跃
+    handleMessage(userId, message);
+  });
 
   // 设置关闭事件处理
   ws.on('close', () => handleClose(userId));
@@ -323,6 +390,13 @@ function handleChatMessage(userId, data) {
  * 关闭WebSocket服务器
  */
 function close() {
+  // !! 清除心跳定时器 !!
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+    console.log('[wsApp] 心跳检测定时器已清除');
+  }
+
   if (wss) {
     // 关闭所有连接
     wss.clients.forEach(client => {
