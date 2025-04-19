@@ -20,7 +20,7 @@
     },
     "oOWGl7aKbawAccewnV8bhwXFmvuE": {
       "openId": "oOWGl7aKbawAccewnV8bhwXFmvuE",
-      "sessionKey": "Njbjd+eKdbxiQ86d/XOu3w==",
+      "sessionKey": "HK9sp0GWjgLCDfIJeOpi3A==",
       "nickName": "测试号🐷",
       "gender": 0,
       "language": "zh_CN",
@@ -29,11 +29,11 @@
       "country": "",
       "avatarUrl": "https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTLBnuM9Qia5BWb60yNXv7Cq0moAiadzXworyVJ5mOA9QbK8PdflqjSw1xQwyOLCzCUh5UE6b4vQarKg/132",
       "watermark": {
-        "timestamp": 1744991331,
+        "timestamp": 1745048932,
         "appid": "wxb7a630bac914f871"
       },
-      "lastLoginAt": "2025-04-18T15:48:51.316Z",
-      "updatedAt": "2025-04-18T15:48:51.316Z",
+      "lastLoginAt": "2025-04-19T07:50:01.789Z",
+      "updatedAt": "2025-04-19T07:50:01.789Z",
       "createdAt": "2025-04-17T13:19:32.030Z"
     },
     "oOWGl7aP02C26UzolOINPOQGw4hQ": {
@@ -46,8 +46,8 @@
     "oOWGl7TIqSA-6WStDt1VuEnx5DTg": {
       "openId": "oOWGl7TIqSA-6WStDt1VuEnx5DTg",
       "sessionKey": "SBcTZLOQRMa9bYNmMG4rrQ==",
-      "lastLoginAt": "2025-04-18T13:04:30.967Z",
-      "updatedAt": "2025-04-18T13:04:30.967Z",
+      "lastLoginAt": "2025-04-18T16:17:39.771Z",
+      "updatedAt": "2025-04-18T16:17:39.771Z",
       "createdAt": "2025-04-18T13:04:30.744Z"
     },
     "oOWGl7TyZ-27oGvh5ao1ah3YAEn8": {
@@ -56,7 +56,14 @@
       "lastLoginAt": "2025-04-18T15:48:55.301Z",
       "updatedAt": "2025-04-18T15:48:55.301Z",
       "createdAt": "2025-04-18T15:39:51.393Z"
+    },
+    "oOWGl7ZxbQGgytUDjdvXm5The3_8": {
+      "openId": "oOWGl7ZxbQGgytUDjdvXm5The3_8",
+      "sessionKey": "Z6Bkwc9wZ1w2fXl3OcalIA==",
+      "lastLoginAt": "2025-04-19T07:49:25.083Z",
+      "updatedAt": "2025-04-19T07:49:25.083Z",
+      "createdAt": "2025-04-18T16:03:22.548Z"
     }
   },
-  "lastUpdated": "2025-04-18T15:48:55.301Z"
+  "lastUpdated": "2025-04-19T07:50:01.790Z"
 }

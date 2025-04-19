@@ -42,6 +42,8 @@ function handleCreateRoom(req, res) {
     // console.log('[RoomHandlers.handleCreateRoom] Validation successful. Preparing options...'); // Removed
     const createOptions = validationResult.data;
     createOptions.hostId = hostId;
+    // !! 从 req.user 获取 hostNickname (假设存在) !!
+    createOptions.hostNickname = req.user?.nickname || `玩家${hostId.substring(0, 4)}`; // 提供后备名称
     
     if (!createOptions.name) {
       // console.log('[RoomHandlers.handleCreateRoom] No room name provided, generating default.'); // Removed
@@ -187,17 +189,41 @@ function handleCloseRoom(req, res) {
 function handleAddPlayerToRoom(req, res) {
   try {
     const { roomId } = req.params;
-    const { playerId, playerData } = req.body;
+    // playerId 可以从 body 获取（用于管理员添加等场景），或者从认证信息 req.userId 获取
+    // 这里优先使用 req.userId (通过 authMiddleware 设置)
+    const playerId = req.userId || req.body.playerId; 
+    const playerData = req.body.playerData; // 其他玩家信息，如 nickname
 
-    if (!roomId || !playerId) {
-      return sendError(res, 400, '房间ID和玩家ID不能为空');
+    if (!roomId) {
+      return sendError(res, 400, '请求中缺少房间ID');
+    }
+    if (!playerId) {
+        // 如果连 req.userId 和 req.body.playerId 都没有，则无法处理
+        return sendError(res, 400, '请求中缺少玩家ID');
     }
 
     // 添加玩家到房间
     const result = roomManager.addPlayerToRoom(roomId, playerId, playerData || {});
 
-    if (!result) {
-      return sendError(res, 404, '房间不存在或已满');
+    // 检查 result 是否包含错误信息
+    if (result && result.error) {
+        switch (result.error) {
+            case 'ROOM_LOCKED':
+                return sendError(res, 409, result.message || '房间操作繁忙，请稍后重试'); // 409 Conflict
+            case 'ROOM_NOT_WAITING':
+                return sendError(res, 403, result.message || '房间当前不可加入'); // 403 Forbidden
+            case 'ROOM_FULL':
+                return sendError(res, 403, result.message || '房间已满'); // 403 Forbidden
+            case 'INTERNAL_ERROR':
+                return sendError(res, 500, result.message || '处理加入房间时发生内部错误');
+            default:
+                // 其他未预期的错误类型，或者 result 本身是 null (例如房间不存在)
+                return sendError(res, 404, '房间不存在或无法加入'); // 404 Not Found
+        }
+    } else if (!result || !result.room || !result.player) {
+        // 如果 result 不是带 error 的对象，也不是有效的成功对象 (如 null 或 undefined)
+        // 这通常对应 roomManager 返回 null 的情况 (房间不存在)
+        return sendError(res, 404, '房间不存在');
     }
 
     // 返回成功信息
@@ -243,24 +269,68 @@ function handleRemovePlayerFromRoom(req, res) {
  */
 function handleStartGame(req, res) {
   try {
-    const { roomId } = req.params;
+    // roomId 可能在 params 或 body 中，取决于 roomRoutes.js 的配置
+    const roomId = req.params.roomId || req.body.roomId;
+    const userId = req.userId; // 从认证中间件获取
 
     if (!roomId) {
       return sendError(res, 400, '房间ID不能为空');
     }
-
-    // 开始游戏
-    const result = roomManager.startGame(roomId);
-
-    if (!result) {
-      return sendError(res, 400, '无法开始游戏，房间可能不存在或人数不足');
+    if (!userId) {
+      // 这个理论上不应该发生，因为有 authMiddleware
+      return sendError(res, 401, '无法获取用户信息');
     }
 
-    // 返回成功信息
-    sendSuccess(res, 200, '游戏开始成功', { gameState: result });
+    const room = roomManager.getRoom(roomId);
+
+    if (!room) {
+      return sendError(res, 404, '房间不存在');
+    }
+
+    // 检查1：请求者是否是房主
+    if (room.hostId !== userId) {
+      return sendError(res, 403, '只有房主才能开始游戏');
+    }
+
+    // 检查2：房间状态是否是 waiting
+    if (room.status !== 'waiting') {
+      return sendError(res, 400, `游戏无法开始，当前房间状态: ${room.status}`);
+    }
+
+    // 检查3：房间是否已满员
+    const isFull = room.players.length === room.maxPlayers;
+    if (!isFull) {
+      return sendError(res, 400, `房间未满员 (${room.players.length}/${room.maxPlayers})，无法开始游戏`);
+    }
+
+    // 检查4：是否所有非房主玩家都已准备好
+    const nonHostPlayers = room.players.filter(p => p.openId !== room.hostId);
+    const allNonHostPlayersReady = nonHostPlayers.every(p => p.ready);
+    if (!allNonHostPlayersReady) {
+        const notReadyNonHostPlayers = nonHostPlayers.filter(p => !p.ready).map(p => p.openId);
+        console.warn(`[handleStartGame] 房间 ${roomId} 尝试开始游戏失败，有非房主玩家未准备:`, notReadyNonHostPlayers);
+        // 保持通用错误消息，或根据需要修改为更具体的消息
+        return sendError(res, 400, `有玩家未准备好，无法开始游戏`);
+    }
+
+    // 所有检查通过，调用 startGame
+    console.log(`[handleStartGame] 房间 ${roomId} 通过所有检查，尝试调用 roomManager.startGame...`);
+    const gameState = roomManager.startGame(roomId);
+
+    if (!gameState) {
+      // 如果 startGame 内部检查失败（理论上不应发生，因为前面已经检查过），返回错误
+      console.error(`[handleStartGame] roomManager.startGame(${roomId}) 返回了 null/falsy，即使检查已通过！`);
+      return sendError(res, 500, '尝试开始游戏时发生内部错误');
+    }
+
+    // startGame 内部会通过 WebSocket 广播 GAME_START
+    // HTTP 请求只需返回成功即可
+    console.log(`[handleStartGame] 房间 ${roomId} 游戏成功启动 (由HTTP请求触发)`);
+    sendSuccess(res, 200, '游戏开始成功', { gameState }); // 可以选择性返回 gameState
+
   } catch (error) {
-    console.error('开始游戏失败:', error);
-    sendError(res, 500, '开始游戏失败', { message: error.message });
+    console.error(`[handleStartGame] 开始游戏失败 (${req.params.roomId || req.body.roomId}):`, error);
+    sendError(res, 500, '开始游戏时发生服务器错误', { message: error.message });
   }
 }
 
