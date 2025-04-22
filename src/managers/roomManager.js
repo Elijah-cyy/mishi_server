@@ -177,10 +177,14 @@ function addPlayerToRoom(roomId, playerId, playerData = {}) {
 
     // 检查房间是否已满
     if (room.players.length >= room.maxPlayers) {
-      console.log(`[addPlayerToRoom] 房间 ${roomId} 已满 (${room.players.length}/${room.maxPlayers})`);
-       // 明确返回房间已满的错误
-      return { error: 'ROOM_FULL', message: '房间已满' };
-      // return null;
+      // 检查玩家是否已在房间中的预检查
+      const existingPlayerIndex = room.players.findIndex(p => p.openId === playerId);
+      if (existingPlayerIndex === -1) {
+        // 只有当玩家不在房间中且房间已满时，才返回房间已满错误
+        console.log(`[addPlayerToRoom] 房间 ${roomId} 已满 (${room.players.length}/${room.maxPlayers})`);
+        return { error: 'ROOM_FULL', message: '房间已满' };
+      }
+      // 如果玩家已在房间列表中，则不应视为房间已满，而应走下面的逻辑处理
     }
 
     // 检查玩家是否已在房间中

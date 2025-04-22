@@ -425,6 +425,34 @@ function handleUpdatePlayerReady(req, res) {
       return sendError(res, 404, '房间或玩家不存在或状态无效');
     }
 
+    // 获取WebSocket服务以便广播消息
+    const wsApp = require('../wsApp');
+    
+    // 通过WebSocket广播房间更新消息
+    const broadcastData = {
+      type: 'ROOM_UPDATE',
+      data: {
+        roomId: result.roomId,
+        eventType: 'PLAYER_READY_CHANGED',
+        playerId: playerId,
+        ready: ready,
+        players: result.players.map(p => ({
+          openId: p.openId,
+          isHost: p.isHost,
+          ready: p.ready,
+          isHeroLocked: p.isHeroLocked,
+          selectedHeroId: p.selectedHeroId,
+          nickname: p.nickname || p.openId
+        })),
+        readyCount: result.players.filter(p => p.ready).length,
+        playerCount: result.players.length
+      }
+    };
+    
+    // 向房间内所有玩家广播状态更新消息
+    wsApp.broadcastToRoom(roomId, broadcastData);
+    console.log(`[handleUpdatePlayerReady] 已通过WebSocket向房间 ${roomId} 广播 ROOM_UPDATE`);
+
     // 返回成功信息
     sendSuccess(res, 200, '成功更新准备状态', { room: result });
   } catch (error) {

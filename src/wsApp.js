@@ -229,6 +229,11 @@ function handleMessage(userId, message) {
         handleJoinRoom(userId, parsedMessage.data);
         break;
 
+      case 'GET_ROOM_INFO':
+        // 处理获取房间信息请求
+        handleGetRoomInfo(userId, parsedMessage.data);
+        break;
+
       case 'PLAYER_READY':
         // 处理玩家准备状态
         handlePlayerReady(userId, parsedMessage.data);
@@ -951,11 +956,86 @@ function logRoomStatus(roomId, context) {
     }
 }
 
+/**
+ * 处理获取房间信息请求
+ * @param {string} userId 用户ID
+ * @param {Object} data 请求数据
+ */
+function handleGetRoomInfo(userId, data) {
+  console.log(`用户 ${userId} 请求获取房间信息:`, data);
+  
+  try {
+    // 检查必要参数
+    if (!data || !data.roomId) {
+      console.error(`获取房间信息失败: 缺少必要参数 roomId`);
+      sendToClient(userId, {
+        type: 'ERROR',
+        data: {
+          code: 4003,
+          message: '缺少必要参数 roomId'
+        }
+      });
+      return;
+    }
+    
+    const roomId = data.roomId;
+    
+    // 获取房间信息
+    const room = roomManager.getRoom(roomId);
+    if (!room) {
+      console.error(`获取房间信息失败: 房间 ${roomId} 不存在`);
+      sendToClient(userId, {
+        type: 'ERROR',
+        data: {
+          code: 4004,
+          message: `房间 ${roomId} 不存在`
+        }
+      });
+      return;
+    }
+    
+    // 回复房间信息
+    sendToClient(userId, {
+      type: 'ROOM_UPDATE',
+      data: {
+        roomId: roomId,
+        eventType: 'ROOM_INFO',
+        room: {
+          roomId: room.roomId,
+          gameMode: room.gameMode,
+          maxPlayers: room.maxPlayers,
+          status: room.status,
+          players: room.players.map(p => ({
+            openId: p.openId,
+            isHost: p.isHost,
+            ready: p.ready,
+            isHeroLocked: p.isHeroLocked,
+            selectedHeroId: p.selectedHeroId,
+            nickname: p.nickname || p.openId
+          }))
+        }
+      }
+    });
+    
+    console.log(`已发送房间 ${roomId} 的信息给用户 ${userId}`);
+  } catch (error) {
+    console.error(`处理获取房间信息请求失败:`, error);
+    sendToClient(userId, {
+      type: 'ERROR',
+      data: {
+        code: 5000,
+        message: '服务器处理请求时出错'
+      }
+    });
+  }
+}
+
 module.exports = {
   attach,
   close,
   sendToClient,
   broadcastToClients,
   broadcastToAll,
+  broadcastToRoom,
   getClientCount
 }; 
