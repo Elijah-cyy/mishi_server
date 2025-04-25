@@ -6,6 +6,8 @@
 const roomStore = require('../storage/memory/roomStore');
 const gameStateStore = require('../storage/memory/gameStateStore');
 const { generateRoomId } = require('../utils/helpers');
+// !!! 移除之前添加的 wsApp 引入 !!!
+// const wsApp = require('../wsApp'); 
 
 // 引入锁 Map 和超时设置
 const roomLocks = new Map();
@@ -53,7 +55,7 @@ function createRoom(options) {
       openId: hostId,
       nickname: hostNickname,
       isHost: true,
-      ready: false,
+      ready: true,
       isHeroLocked: false, // 新增：初始英雄未锁定
       selectedHeroId: null, // 新增：初始未选择英雄
       isBot: false,         // 新增：是否为机器人 (房主默认为 false)
@@ -483,8 +485,21 @@ function startGame(roomId) {
   roomStore.setRoom(roomId, updatedRoom);
   console.log(`房间 ${roomId} 进入角色选择阶段`);
 
-  // !! 修改：广播 ROOM_UPDATE 消息，包含更新后的房间信息（含新状态） !!
+  // !! 恢复对 notifyRoomUpdate 的调用 !!
   notifyRoomUpdate(roomId, 'START_CHARACTER_SELECT', { room: updatedRoom });
+  // !!! 移除之前添加的直接广播代码 !!!
+  /*
+  const broadcastData = {
+    type: 'ROOM_UPDATE',
+    data: {
+      roomId: updatedRoom.roomId,
+      eventType: 'START_CHARACTER_SELECT',
+      room: updatedRoom // 包含完整的房间信息
+    }
+  };
+  wsApp.broadcastToRoom(roomId, broadcastData);
+  console.log(`[startGame] 已通过WebSocket向房间 ${roomId} 广播 START_CHARACTER_SELECT`);
+  */
 
   return gameState;
 }

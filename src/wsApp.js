@@ -7,6 +7,7 @@ const WebSocket = require('ws');
 const url = require('url');
 const sessionManager = require('./managers/sessionManager');
 const roomManager = require('./managers/roomManager'); // 确保 roomManager 被正确导入
+const multiplayerHandler = require('./game/multiplayer_handler'); // <-- 1. 引入多人游戏处理器
 
 // WebSocket服务实例
 let wss = null;
@@ -182,30 +183,16 @@ function handleMessage(userId, message) {
     let parsedMessage;
     try {
         parsedMessage = JSON.parse(message);
-        console.log(`[handleMessage PARSED] Parsed message from ${userId}:`, parsedMessage);
+        // console.log(`[handleMessage PARSED] Parsed message from ${userId}:`, parsedMessage);
     } catch (parseError) {
         console.error(`[handleMessage ERROR] Failed to parse message from ${userId}. Raw message:`, message, 'Error:', parseError);
-        // 发送解析错误响应
-        sendToClient(userId, {
-          type: 'ERROR',
-          data: {
-            code: 4001, // Use a specific code for parsing errors
-            message: 'Invalid message format (not valid JSON)'
-          }
-        });
-        return; // 无法继续处理，直接返回
+        sendError(userId, 'PARSE_ERROR', 'Invalid message format (not valid JSON)');
+        return;
     }
     
-    // 确保 parsedMessage 和 parsedMessage.type 存在
     if (!parsedMessage || typeof parsedMessage.type !== 'string') {
-        console.error(`[handleMessage ERROR] Invalid message structure or missing type from ${userId}. Parsed:`, parsedMessage);
-        sendToClient(userId, {
-          type: 'ERROR',
-          data: {
-            code: 4002, // Specific code for structure/type error
-            message: 'Invalid message structure or missing type'
-          }
-        });
+      console.error(`[handleMessage ERROR] Invalid message structure from ${userId}:`, parsedMessage);
+      sendError(userId, 'INVALID_STRUCTURE', 'Invalid message structure (missing type)');
         return;
     }
 
@@ -214,15 +201,15 @@ function handleMessage(userId, message) {
 
     // 根据消息类型处理
     switch (parsedMessage.type) {
-      case 'PING':
-        // 心跳响应
-        sendToClient(userId, {
-          type: 'PONG',
-          data: {
-            timestamp: Date.now()
-          }
-        });
+      case 'PING': { // 4. 修复 PING 处理
+        const ws = clients.get(userId);
+        if (ws) {
+            ws.pong();
+        } else {
+            console.warn(`[handleMessage PING] Cannot find WebSocket connection for userId: ${userId}`);
+        }
         break;
+      }
 
       case 'JOIN_ROOM':
         // 处理加入房间请求
@@ -254,15 +241,12 @@ function handleMessage(userId, message) {
         handleChatMessage(userId, parsedMessage.data);
         break;
 
-      case 'ADD_BOT': // 新增：处理添加机器人
-        console.log("[DEBUG] Matched 'ADD_BOT' case."); 
-        // 假设 handleAddBot 函数将在此文件或其他地方定义
-        // 并假设 roomManager 和 broadcastToRoom 也在此作用域可用或已导入
+      case 'ADD_BOT':
         if (typeof handleAddBot === 'function') {
-          handleAddBot(clients.get(userId), parsedMessage.data); // 传递 WebSocket 对象和数据
+           handleAddBot(clients.get(userId), parsedMessage.data);
         } else {
            console.error("handleAddBot function is not defined!");
-           sendToClient(userId, { type: 'ERROR', data: { code: 5001, message: 'Server error: Bot feature not available.' } });
+            sendError(userId, 'SERVER_ERROR', 'Bot feature not available.');
         }
         break;
 
@@ -270,28 +254,86 @@ function handleMessage(userId, message) {
         handleLockHero(userId, parsedMessage.data);
         break;
 
+      // --- 多人游戏逻辑 ---
+      case 'JOIN_GAME_SESSION': { 
+        const { sessionId, characterId: clientCharacterId } = parsedMessage.data;
+        if (!sessionId) {
+          sendError(userId, 'JOIN_GAME_SESSION_FAILED', 'Session ID is required.');
+          return;
+        }
+        let gameMode = '竞速模式';
+        let characterId = clientCharacterId; // 优先使用客户端直接传递的characterId
+
+        // 如果客户端没有直接传递角色ID，尝试从房间数据中获取
+        if (!characterId && roomManager && typeof roomManager.getRoom === 'function') {
+            const room = roomManager.getRoom(sessionId); // Assume sessionId is roomId
+            if (room) {
+                if (room.gameMode) {
+                    gameMode = room.gameMode;
+                }
+                // 从房间数据中查找当前玩家并获取角色ID
+                const playerInRoom = room.players?.find(p => p.openId === userId);
+                if (playerInRoom && playerInRoom.selectedHeroId) {
+                    characterId = playerInRoom.selectedHeroId;
+                }
+            }
+        }
+        
+        // 调用多人游戏处理器加入会话
+        const gameState = multiplayerHandler.joinSession(sessionId, userId, gameMode, characterId);
+        
+        // 向客户端发送加入会话响应
+        sendToClient(userId, { type: 'GAME_SESSION_JOINED', data: gameState });
+        
+        // 广播PLAYER_JOINED_SESSION给会话内其他玩家
+        const latestPlayerData = multiplayerHandler.activeSessions[sessionId]?.players?.[userId];
+        if (latestPlayerData) {
+            // 构造完整的玩家数据
+            const broadcastPlayerData = {
+                characterId: latestPlayerData.characterId,
+                position: latestPlayerData.position,
+                hp: latestPlayerData.hp || 3,
+                maxHp: latestPlayerData.maxHp || 3,
+                items: latestPlayerData.items || []
+            };
+            
+            // 执行广播
+            broadcastToSession(sessionId, { 
+                type: 'PLAYER_JOINED_SESSION', 
+                data: { 
+                    playerId: userId, 
+                    playerData: broadcastPlayerData 
+                } 
+            }, userId);
+        }
+        break;
+      }
+      // --- 结束 JOIN_GAME_SESSION ---
+
+      // --- 6. 添加 PLAYER_MOVE 处理 ---
+      case 'PLAYER_MOVE': { 
+        const { sessionId, position } = parsedMessage.data;
+        if (!sessionId || !position) {
+          sendError(userId, 'PLAYER_MOVE_FAILED', 'Session ID and position are required.');
+          return;
+        }
+        multiplayerHandler.handlePlayerMove(sessionId, userId, position);
+        // 广播给会话内其他玩家
+        broadcastToSession(sessionId, { type: 'PLAYER_MOVED', data: { playerId: userId, position } }, userId);
+        break;
+      }
+      // --- 结束 PLAYER_MOVE ---
+
       default:
         console.log(`[DEBUG] Reached default case in handleMessage for type: ${parsedMessage.type}`);
         console.warn(`未处理的消息类型: ${parsedMessage.type}`);
         // 发送错误响应
-        sendToClient(userId, {
-          type: 'ERROR',
-          data: {
-            code: 4000,
-            message: '不支持的消息类型'
-          }
-        });
+        sendError(userId, 'UNKNOWN_TYPE', `Unknown message type: ${parsedMessage.type}`);
     }
   } catch (error) {
     console.error(`处理消息失败: ${error.message}`);
     // 发送错误响应
-    sendToClient(userId, {
-      type: 'ERROR',
-      data: {
-        code: 4000,
-        message: '消息格式无效'
-      }
-    });
+    sendError(userId, 'INTERNAL_ERROR', 'An internal server error occurred.');
   }
 }
 
@@ -300,13 +342,67 @@ function handleMessage(userId, message) {
  * @param {string} userId 用户ID
  */
 function handleClose(userId) {
+  if (!userId) {
+      console.warn('[wsApp.handleClose] Attempted to handle close for an undefined userId.');
+      return;
+  }
   console.log(`WebSocket客户端已断开连接: ${userId}`);
   
-  // 从客户端列表中移除
+  const ws = clients.get(userId);
+  if (ws) {
   clients.delete(userId);
-  
-  // 发送离线通知
+  } else {
+      console.warn(`[wsApp.handleClose] Tried to remove non-existent client: ${userId}`);
+  }
+
+  // --- 7. 处理会话离开和房间离开 ---
+  // 处理多人游戏会话离开
+  const currentSessionId = findSessionIdForUser(userId);
+  if (currentSessionId) {
+      multiplayerHandler.leaveSession(currentSessionId, userId);
+      broadcastToSession(currentSessionId, { type: 'PLAYER_LEFT', data: { playerId: userId } }, userId);
+      console.log(`[wsApp] Player ${userId} removed from session ${currentSessionId} and notified others.`);
+  }
+
+  // 通知房间内的其他用户该用户已离线 (使用 getPlayerRoomId)
+  let roomId = null;
+  if (roomManager && typeof roomManager.getPlayerRoomId === 'function') {
+      roomId = roomManager.getPlayerRoomId(userId); 
+  } else {
+      console.warn('[wsApp.handleClose] roomManager or getPlayerRoomId not available.');
+  }
+
+  if (roomId) {
+    console.log(`[wsApp.handleClose] Player ${userId} was in room ${roomId}. Notifying room.`);
+    // 修复：使用removePlayerFromRoom替代不存在的leaveRoom
+    if (roomManager && typeof roomManager.removePlayerFromRoom === 'function') {
+        roomManager.removePlayerFromRoom(roomId, userId);
+        console.log(`[wsApp.handleClose] Player ${userId} removed from room ${roomId}`);
+    } else {
+        console.error('[wsApp.handleClose] roomManager.removePlayerFromRoom is not available.');
+    }
+    broadcastToRoom(roomId, { type: 'USER_LEFT_ROOM', data: { userId, roomId } }, null); 
+    
+    // 添加防错处理
+    if (roomManager && typeof roomManager.checkRoomState === 'function') {
+        try {
+            roomManager.checkRoomState(roomId);
+            console.log(`[wsApp.handleClose] Room ${roomId} state checked.`);
+        } catch (error) {
+            console.error(`[wsApp.handleClose] Error checking room state: ${error.message}`);
+        }
+    } else {
+        console.warn('[wsApp.handleClose] roomManager.checkRoomState is not available, skipping room state check');
+    }
+    
+    logRoomStatus(roomId, 'handleClose');
+  } else {
+      console.log(`[wsApp.handleClose] Player ${userId} was not in any game room.`);
+  }
+  // --- 结束处理 --- 
+
   broadcastUserStatus(userId, 'offline');
+  console.log(`[wsApp.handleClose] 当前在线客户端数量: ${getClientCount()}`);
 }
 
 /**
@@ -1030,6 +1126,67 @@ function handleGetRoomInfo(userId, data) {
   }
 }
 
+// === 2. 添加辅助函数 ===
+/**
+ * 发送错误消息给客户端
+ * @param {string} userId
+ * @param {string} errorType
+ * @param {string} message
+ */
+function sendError(userId, errorType, message) {
+    sendToClient(userId, { type: 'ERROR', data: { code: errorType, message } });
+}
+
+/**
+ * 查找用户所在的会话ID (临时实现)
+ * @param {string} userId
+ * @returns {string | null}
+ */
+function findSessionIdForUser(userId) {
+    // 直接访问 multiplayerHandler 的 activeSessions (临时方案)
+     for (const sessionId in multiplayerHandler.activeSessions) {
+         if (multiplayerHandler.activeSessions[sessionId]?.players?.[userId]) {
+             return sessionId;
+         }
+     }
+    return null;
+}
+// === 结束辅助函数 ===
+
+// === 3. 添加广播到会话的辅助函数 ===
+/**
+ * 广播消息到指定游戏会话的所有玩家 (除了排除者)
+ * @param {string} sessionId 会话ID
+ * @param {object} messageData 消息数据
+ * @param {string|null} excludeUserId 要排除的用户ID
+ */
+function broadcastToSession(sessionId, messageData, excludeUserId = null) {
+    const session = multiplayerHandler.activeSessions[sessionId];
+    if (!session || !session.players) {
+        console.warn(`[broadcastToSession] Session ${sessionId} not found or has no players.`);
+        return;
+    }
+
+    const playerIds = Object.keys(session.players);
+    let sentCount = 0;
+    const messageString = JSON.stringify(messageData);
+    
+    playerIds.forEach(playerId => {
+        if (playerId !== excludeUserId) {
+            const clientWs = clients.get(playerId);
+            if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+                try {
+                    clientWs.send(messageString);
+                    sentCount++;
+                } catch (sendError) {
+                    console.error(`[broadcastToSession]向会话 ${sessionId} 中的客户端 ${playerId} 发送消息失败:`, sendError);
+                }
+            }
+        }
+    });
+}
+// === 结束广播辅助函数 ===
+
 module.exports = {
   attach,
   close,
@@ -1037,5 +1194,6 @@ module.exports = {
   broadcastToClients,
   broadcastToAll,
   broadcastToRoom,
-  getClientCount
+  getClientCount,
+  broadcastToSession
 }; 

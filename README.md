@@ -33,7 +33,7 @@ npm install helmet compression body-parser dotenv axios
 ```bash
 node server.js
 ```
-
+cd mishi_server; node server.js
 
 服务将在 http://localhost:3000 启动
 
