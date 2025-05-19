@@ -76,7 +76,14 @@ function generateRoomsHtml(rooms) {
       let playersListHtml = '<ul class="player-list">';
       if (room.players && room.players.length > 0) {
         room.players.forEach(player => {
-          let playerStatusText = player.isReady ? '<span class="player-status-ready">已准备</span>' : '<span class="player-status-not-ready">未准备</span>';
+          let isPlayerActuallyReady = false;
+          if (typeof player.ready === 'boolean') {
+            isPlayerActuallyReady = player.ready;
+          } else if (typeof player.isReady === 'boolean') {
+            isPlayerActuallyReady = player.isReady;
+          }
+
+          let playerStatusText = isPlayerActuallyReady ? '<span class="player-status-ready">已准备</span>' : '<span class="player-status-not-ready">未准备</span>';
           let playerHostText = player.isHost ? '<span class="player-host">(房主)</span>' : '';
           playersListHtml += '<li>' + 
                              (player.nickname || '匿名玩家') + 

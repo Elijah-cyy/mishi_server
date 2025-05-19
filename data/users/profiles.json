@@ -3,8 +3,8 @@
     "oOWGl7bkN1-6B_NPuT8eFL95zZOo": {
       "openId": "oOWGl7bkN1-6B_NPuT8eFL95zZOo",
       "sessionKey": "hE0cnhDLBr9C1if1S8S9lw==",
-      "lastLoginAt": "2025-05-19T18:16:49.806Z",
-      "updatedAt": "2025-05-19T18:16:49.806Z",
+      "lastLoginAt": "2025-05-19T18:40:18.594Z",
+      "updatedAt": "2025-05-19T18:40:18.595Z",
       "createdAt": "2025-04-14T17:24:17.579Z",
       "nickName": "🍊🐟🐑",
       "gender": 0,
@@ -20,7 +20,7 @@
     },
     "oOWGl7aKbawAccewnV8bhwXFmvuE": {
       "openId": "oOWGl7aKbawAccewnV8bhwXFmvuE",
-      "sessionKey": "WRgZvpw1DtJLVPd/hm2mCA==",
+      "sessionKey": "7U7np7qLSuRYriWFkv5Ysw==",
       "nickName": "测试号🐷",
       "gender": 0,
       "language": "zh_CN",
@@ -29,18 +29,18 @@
       "country": "",
       "avatarUrl": "https://thirdwx.qlogo.cn/mmopen/vi_32/Q0j4TwGTfTLBnuM9Qia5BWb60yNXv7Cq0moAiadzXworyVJ5mOA9QbK8PdflqjSw1xQwyOLCzCUh5UE6b4vQarKg/132",
       "watermark": {
-        "timestamp": 1745514820,
+        "timestamp": 1747680027,
         "appid": "wxb7a630bac914f871"
       },
-      "lastLoginAt": "2025-04-24T17:14:53.714Z",
-      "updatedAt": "2025-04-24T17:14:53.714Z",
+      "lastLoginAt": "2025-05-19T18:40:27.563Z",
+      "updatedAt": "2025-05-19T18:40:27.563Z",
       "createdAt": "2025-04-17T13:19:32.030Z"
     },
     "oOWGl7aP02C26UzolOINPOQGw4hQ": {
       "openId": "oOWGl7aP02C26UzolOINPOQGw4hQ",
-      "sessionKey": "jyK+H7cann5bgduNvcFyxw==",
-      "lastLoginAt": "2025-04-24T20:56:22.346Z",
-      "updatedAt": "2025-04-24T20:56:22.346Z",
+      "sessionKey": "hgmiMMtncSyenKNeNrxe0w==",
+      "lastLoginAt": "2025-05-19T18:40:33.803Z",
+      "updatedAt": "2025-05-19T18:40:33.803Z",
       "createdAt": "2025-04-18T12:23:44.197Z"
     },
     "oOWGl7TIqSA-6WStDt1VuEnx5DTg": {
@@ -65,5 +65,5 @@
       "createdAt": "2025-04-18T16:03:22.548Z"
     }
   },
-  "lastUpdated": "2025-05-19T18:17:58.347Z"
+  "lastUpdated": "2025-05-19T18:40:33.804Z"
 }
