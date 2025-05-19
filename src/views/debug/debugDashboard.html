@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后端调试面板</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+        }
+        h1 {
+            color: #1877f2; /* 微信蓝或类似的蓝色 */
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .nav-links a {
+            display: block;
+            background-color: #1877f2;
+            color: white;
+            padding: 15px 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 18px;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .nav-links a:hover {
+            background-color: #166fe5;
+            transform: translateY(-2px);
+        }
+        .nav-links a:active {
+            transform: translateY(0);
+            background-color: #145cb5;
+        }
+        footer {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>后端服务调试面板</h1>
+        <div class="nav-links">
+            <a href="/api/debug/rooms">查看活跃房间</a>
+            <a href="/api/debug/sessions">查看活跃会话</a>
+        </div>
+        <footer>
+            <p>请选择一个选项来查看相关的调试信息。</p>
+        </footer>
+    </div>
+</body>
+</html> 

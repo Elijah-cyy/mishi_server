@@ -16,6 +16,13 @@ const debugHandlers = require('../../handlers/debugHandlers');
 // });
 
 /**
+ * @route GET /api/debug/
+ * @desc Serves the main debug dashboard page
+ * @access Development only
+ */
+router.get('/', debugHandlers.handleGetDebugDashboard);
+
+/**
  * @route GET /api/debug/rooms
  * @desc Get all active rooms
  * @access Development only

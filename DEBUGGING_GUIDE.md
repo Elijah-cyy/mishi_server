@@ -4,7 +4,22 @@
 
 **重要提示：** 这些调试接口默认只在 **非生产环境** (`NODE_ENV !== 'production'`) 下启用。在生产环境中它们会被禁用。
 
-## 接口列表
+## 如何通过浏览器访问调试信息
+
+我们提供了一个统一的调试面板，方便您通过浏览器查看后端状态。
+
+1.  打开您的网页浏览器 (Chrome, Firefox, Edge 等)。
+2.  在地址栏输入调试面板的 URL：`http://localhost:3000/api/debug/`
+3.  按下回车。浏览器将显示调试面板，您可以从中选择查看“活跃房间”或“活跃会话”。
+    *   点击“查看活跃房间”会跳转到 `/api/debug/rooms`，以美化的 HTML 表格形式展示房间数据。
+    *   点击“查看活跃会话”会跳转到 `/api/debug/sessions`，以美化的 HTML 表格形式展示会话数据。
+
+如果您需要原始的 JSON 数据（例如，用于程序化处理或使用 API 测试工具），您可以直接访问以下接口：
+
+*   获取活跃房间列表 (JSON): `/api/debug/rooms` (通过 Postman, curl 等工具，或在请求头中明确 `Accept: application/json`)
+*   获取活跃会话列表 (JSON): `/api/debug/sessions` (通过 Postman, curl 等工具，或在请求头中明确 `Accept: application/json`)
+
+## 接口详情 (JSON 格式)
 
 ### 1. 获取活跃房间列表
 
@@ -103,32 +118,8 @@
 
 假设你的后端服务器运行在 `http://localhost:3000`。
 
-### 方法一：使用网页浏览器
+### 使用网页浏览器
 
 1.  打开你的网页浏览器 (Chrome, Firefox, Edge 等)。
-2.  在地址栏输入接口的完整 URL，例如：`http://localhost:3000/api/debug/rooms`
-3.  按下回车。浏览器将显示返回的 JSON 数据。
-
-### 方法二：使用 `curl` (命令行)
-
-1.  打开命令行终端 (PowerShell, CMD, Git Bash, Terminal 等)。
-2.  输入命令，例如：
-    ```bash
-    curl http://localhost:3000/api/debug/rooms
-    ```
-    或者查看会话：
-    ```bash
-    curl http://localhost:3000/api/debug/sessions
-    ```
-3.  按下回车。JSON 数据将直接打印在命令行中。
-
-### 方法三：使用 API 测试工具 (Postman, Insomnia 等)
-
-1.  打开你的 API 测试工具。
-2.  创建一个新的请求。
-3.  设置请求方法为 `GET`。
-4.  输入接口的完整 URL (例如 `http://localhost:3000/api/debug/rooms`)。
-5.  发送请求。
-6.  工具将显示完整的响应头和响应体 (JSON 数据)。
-
---- 
+2.  在地址栏输入接口的完整 URL，例如：`http://localhost:3000/api/debug/rooms` 或者查看会话 `http://localhost:3000/api/debug/sessions`
+3.  按下回车。浏览器将显示一个格式化后的 HTML 页面，其中包含了请求的数据。如果需要原始的 JSON 数据，请使用 Postman、curl 或其他 API 测试工具访问这些 URL。
