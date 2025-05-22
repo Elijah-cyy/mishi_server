@@ -222,7 +222,10 @@ async function syncAll(force = false) {
     return;
   }
   
-  console.log('开始数据同步...');
+  // 仅在强制同步或非开发环境下打印日志
+  if (force || process.env.NODE_ENV !== 'development') {
+    console.log('开始数据同步...');
+  }
   
   try {
     // 同步已结束的房间到历史记录
@@ -237,7 +240,10 @@ async function syncAll(force = false) {
     // 更新最后同步时间
     lastSyncTime = now;
     
-    console.log('数据同步完成');
+    // 仅在强制同步或非开发环境下打印日志
+    if (force || process.env.NODE_ENV !== 'development') {
+      console.log('数据同步完成');
+    }
   } catch (error) {
     console.error('数据同步失败:', error);
   }

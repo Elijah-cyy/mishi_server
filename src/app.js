@@ -57,7 +57,7 @@ app.use(logger.slowRequestLogger(500));
 // --- 注册调试路由 (仅开发环境推荐) ---
 if (process.env.NODE_ENV !== 'production') {
   app.use('/api/debug', debugRoutes);
-  console.log('[App] 调试路由已启用，路径: /api/debug');
+  console.log('[App] 调试路由已启用，请访问如下网址进入后台数据监控: http://localhost:3000/api/debug');
 } else {
   console.log('[App] 生产环境禁用调试路由。');
 }
