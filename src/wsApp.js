@@ -202,12 +202,14 @@ function handleMessage(userId, message) {
     // 根据消息类型处理
     switch (parsedMessage.type) {
       case 'PING': { // 4. 修复 PING 处理
-        const ws = clients.get(userId);
-        if (ws) {
-            ws.pong();
-        } else {
-            console.warn(`[handleMessage PING] Cannot find WebSocket connection for userId: ${userId}`);
-        }
+        // const ws = clients.get(userId); // 旧代码
+        // if (ws) { // 旧代码
+        //     ws.pong(); // 旧代码：发送的是pong控制帧，前端需要的是PONG消息
+        // } else { // 旧代码
+        //     console.warn(`[handleMessage PING] Cannot find WebSocket connection for userId: ${userId}`); // 旧代码
+        // } // 旧代码
+        // 新代码：回复PONG数据消息
+        sendToClient(userId, { type: 'PONG', data: { timestamp: Date.now() } });
         break;
       }
 
